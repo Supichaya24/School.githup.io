@@ -314,7 +314,7 @@
     <div class="custom-alert-box" style="border-color: #8e44ad;">
         <h2 style="color: #8e44ad; font-size: 28px;">🔒 รหัสผ่านสำหรับครู</h2>
         <p style="color: #666; margin-bottom: 15px;">กรุณากรอกรหัสผ่านเพื่อเข้าสู่เครื่องมือครู</p>
-        <input type="password" id="teacher-pwd-input" placeholder="พิมพ์รหัสผ่าน (1234)" style="text-align:center; margin-bottom: 10px; font-size: 20px;">
+        <input type="password" id="teacher-pwd-input" placeholder="พิมพ์รหัสผ่าน" style="text-align:center; margin-bottom: 10px; font-size: 20px;">
         <p id="teacher-pwd-error" style="color: #e74c3c; margin: 0 0 15px 0; display: none; font-size: 14px;">❌ รหัสผ่านไม่ถูกต้อง!</p>
         <div class="button-group" style="justify-content: center; margin-top: 0; flex-direction: row;">
             <button class="btn btn-outline" style="border-color: #7f8c8d; color: #7f8c8d; width: auto;" onclick="closeTeacherPassword()">ยกเลิก</button>
@@ -327,7 +327,7 @@
     // ==========================================
     // ⚙️ การตั้งค่า GOOGLE SHEETS API และ AI
     // ==========================================
-    const GOOGLE_SHEET_API_URL = ""; 
+    const GOOGLE_SHEET_API_URL = "https://script.google.com/macros/s/AKfycbw3Sx27L_dVLN2GPF3pvV76CXLR0BPtSpJFsLVC6kzG_LYZHvjIA65kVIV6zHL8GpBW/exec"; 
     
     // 🔑 API Key สำหรับ Gemini AI (AI Worksheet Generator)
     // ⚠️ สำคัญ: หากคุณครูนำไฟล์นี้ไปใช้งานนอกระบบ (เช่น ไปสร้างเว็บเองบน Tiiny.host หรือฝังในหน้าเว็บโรงเรียน)
@@ -495,6 +495,8 @@
             return; 
         }
 
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        
         const systemPrompt = `คุณคือครูผู้เชี่ยวชาญในการสร้างใบงาน Interactive 
         จงสร้างชุดคำถามตามหัวข้อที่ผู้ใช้สั่ง โดยบังคับใช้รูปแบบ Syntax ด้านล่างนี้เท่านั้น และคั่นแต่ละข้อด้วยเครื่องหมาย | 
         (ห้ามมีข้อความอธิบายทักทายหรือ Markdown ใดๆ ทั้งสิ้น ให้ตอบกลับมาเป็นโค้ดบรรทัดเดียว)
@@ -516,39 +518,15 @@
         btn.innerHTML = '⏳ กำลังให้ AI ประมวลผลและแต่งข้อสอบ...';
         btn.disabled = true;
 
-        // ระบบจะลองใช้โมเดลสำหรับหน้าต่าง Preview ก่อน
-        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-        
         try {
-            let result;
-            try {
-                // พยายามเรียกโมเดล 2.5 Preview
-                result = await fetchWithRetry(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: promptText }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] }
-                    })
-                });
-            } catch (firstErr) {
-                // หากเจอ Error 404 (แสดงว่าคุณครูใช้ API Key ของตนเองนอกระบบ Canvas) 
-                // ให้ทำการสลับไปใช้รุ่นมาตรฐาน (1.5-flash) อัตโนมัติทันที
-                if (firstErr.message.includes('404')) {
-                    console.log("Switching to gemini-1.5-flash fallback...");
-                    url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-                    result = await fetchWithRetry(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: promptText }] }],
-                            systemInstruction: { parts: [{ text: systemPrompt }] }
-                        })
-                    });
-                } else {
-                    throw firstErr; // โยน Error อื่นๆ ออกไปให้ catch ด้านล่างจัดการ
-                }
-            }
+            const result = await fetchWithRetry(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                })
+            });
             
             const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
             document.getElementById('ai-output-result').value = aiText.trim();
@@ -556,7 +534,7 @@
         } catch(err) {
             console.error(err);
             if (apiKey === "") {
-                showAlert('❌ ระบบ AI ไม่สามารถทำงานได้<br><br>(คุณครูต้องไปรับ API Key ฟรีจาก Google แล้วนำมาใส่ในโค้ดบรรทัด 468 ก่อนครับ)', 'error');
+                showAlert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ AI<br><br>(สาเหตุ: เนื่องจากคุณครูนำไฟล์นี้ไปใช้นอกระบบทดสอบ จึงต้องใส่ Gemini API Key ของตนเองในโค้ดบรรทัดที่ 468 ก่อนครับ ถึงจะใช้งาน AI ได้)', 'error');
             } else {
                 showAlert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ' + err.message, 'error');
             }
